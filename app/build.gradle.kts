@@ -40,13 +40,21 @@ android {
 }
 
 dependencies {
+    implementation(platform(libs.androidx.compose.bom))
 
     implementation("androidx.compose.material3:material3:1.3.1")
     implementation("androidx.navigation:navigation-compose:2.5.3")
+    implementation("androidx.compose.runtime:runtime-livedata:1.4.3")
+    implementation("androidx.compose.ui:ui-text:1.5.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.1")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.navigation:navigation-runtime-ktx:2.5.3")
+
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
+
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)

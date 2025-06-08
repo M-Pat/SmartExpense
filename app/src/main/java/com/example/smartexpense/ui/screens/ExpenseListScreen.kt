@@ -1,112 +1,273 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
-
 package com.example.smartexpense.ui.screens
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.smartexpense.R
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.smartexpense.data.model.Expense
+import com.example.smartexpense.viewmodel.ExpenseListViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Composable
-fun ExpenseListScreen(onAddClicked: () -> Unit) {
-    val sampleExpenses = remember {
-        mutableStateListOf(
-            Expense(12.5, "Lunch at Cafe", "Food"),
-            Expense(7.99, "Coffee & Snack", "Food", System.currentTimeMillis() - 86_400_000),
-            Expense(23.0, "Taxi ride", "Transport", System.currentTimeMillis() - 2 * 86_400_000)
-        )
+fun ExpenseListScreen(
+    viewModel: ExpenseListViewModel,
+    onAddExpense:    () -> Unit,
+    onAddBudget:     () -> Unit,
+    onSettings:      () -> Unit,
+    onWeekSummary:   (start: Long, end: Long) -> Unit,
+    onMonthSummary:  (start: Long, end: Long) -> Unit
+) {
+    // 1) full list
+    val allExpenses by viewModel.items.collectAsStateWithLifecycle(emptyList())
+
+    // 2) compute periods
+    val weekPeriods = remember(allExpenses) {
+        allExpenses
+            .map { it.timestamp.toWeekRange() }
+            .distinct()
+            .sortedByDescending { it.first }
+    }
+    val monthPeriods = remember(allExpenses) {
+        allExpenses
+            .map { it.timestamp.toMonthRange() }
+            .distinct()
+            .sortedByDescending { it.first }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("My Expenses") },
-                // use the universally-available API:
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddClicked) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_add),
-                    contentDescription = "Add expense"
-                )
-            }
-        }
-    ) { innerPadding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            if (sampleExpenses.isEmpty()) {
+    // menu state
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (allExpenses.isEmpty()) {
+            // EMPTY STATE
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
                 Text(
                     "No expenses yet.\nTap + to get started.",
-                    Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.bodyLarge
                 )
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(sampleExpenses) { expense ->
-                        ExpenseCard(expense)
-                    }
+            }
+        } else {
+            // 3) top tabs
+            var modeTab by rememberSaveable { mutableStateOf(0) }
+            TabRow(selectedTabIndex = modeTab) {
+                listOf("Weekly", "Monthly").forEachIndexed { i, title ->
+                    Tab(
+                        text     = { Text(title) },
+                        selected = (modeTab == i),
+                        onClick  = { modeTab = i }
+                    )
                 }
+            }
+
+            // 4) date-period tabs
+            val periods = if (modeTab == 0) weekPeriods else monthPeriods
+            var periodTab by rememberSaveable { mutableStateOf(0) }
+            ScrollableTabRow(selectedTabIndex = periodTab) {
+                periods.forEachIndexed { idx, (start, end) ->
+                    val label = if (modeTab == 0) {
+                        SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(start)) +
+                                " – " +
+                                SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(end))
+                    } else {
+                        SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(Date(start))
+                    }
+                    Tab(
+                        text     = { Text(label) },
+                        selected = (periodTab == idx),
+                        onClick  = { periodTab = idx }
+                    )
+                }
+            }
+
+            // 5) summary button
+            val (selStart, selEnd) = periods.getOrNull(periodTab) ?: (0L to 0L)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Button(onClick = {
+                    if (modeTab == 0) onWeekSummary(selStart, selEnd)
+                    else              onMonthSummary(selStart, selEnd)
+                }) {
+                    Text("View Summary")
+                }
+            }
+
+            // 6) filtered list
+            val filtered = allExpenses.filter { it.timestamp in selStart..selEnd }
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filtered) { expense ->
+                    ExpenseCard(
+                        expense = expense,
+                        onDelete = { viewModel.deleteExpense(expense) }
+                    )
+                }
+            }
+        }
+
+        // 7) FAB + menu
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            FloatingActionButton(onClick = { menuExpanded = true }) {
+                Icon(Icons.Default.Add, contentDescription = "Menu")
+            }
+            // anchor the menu under FAB
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+                modifier = Modifier.wrapContentWidth(Alignment.End)
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Add Expense") },
+                    onClick = {
+                        menuExpanded = false
+                        onAddExpense()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Set Budget") },
+                    onClick = {
+                        menuExpanded = false
+                        onAddBudget()
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text("Settings") },
+                    onClick = {
+                        menuExpanded = false
+                        onSettings()
+                    }
+                )
             }
         }
     }
 }
 
-
 @Composable
-fun ExpenseCard(expense: Expense, modifier: Modifier = Modifier) {
+private fun ExpenseCard(
+    expense: Expense,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title   = { Text("Delete expense?") },
+            text    = { Text("Are you sure you want to permanently delete this expense?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete()
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
+
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        ),
+        colors   = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     expense.category,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
                 )
-                Text(
-                    String.format("$%.2f", expense.amount),
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.primary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { confirmDelete = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Delete"
+                        )
+                    }
+                    Text(
+                        "\$${"%.2f".format(expense.amount)}",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                        ),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Spacer(Modifier.height(4.dp))
             Text(expense.description, style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(4.dp))
             Text(
-                SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-                    .format(Date(expense.timestamp)),
+                SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(expense.timestamp)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
+}
+
+// Helpers
+private fun Long.toWeekRange(): Pair<Long, Long> {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = this@toWeekRange
+        firstDayOfWeek = Calendar.MONDAY
+        set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    val start = cal.timeInMillis
+    val end = start + 7 * 24 * 60 * 60 * 1000 - 1
+    return start to end
+}
+
+private fun Long.toMonthRange(): Pair<Long, Long> {
+    val cal = Calendar.getInstance().apply {
+        timeInMillis = this@toMonthRange
+        set(Calendar.DAY_OF_MONTH, 1)
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }
+    val start = cal.timeInMillis
+    cal.add(Calendar.MONTH, 1)
+    val end = cal.timeInMillis - 1
+    return start to end
 }
