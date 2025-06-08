@@ -19,7 +19,6 @@ fun SplashScreen(
     navController: NavHostController,
     delayMillis: Long = 2000L
 ) {
-    // Full-screen surface using your theme’s background
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -39,11 +38,9 @@ fun SplashScreen(
         }
     }
 
-    // Once mounted, wait then navigate
     LaunchedEffect(Unit) {
         delay(delayMillis)
         navController.navigate("expenseList") {
-            // Remove "splash" from back-stack so back button won't return here
             popUpTo("splash") { inclusive = true }
         }
     }
