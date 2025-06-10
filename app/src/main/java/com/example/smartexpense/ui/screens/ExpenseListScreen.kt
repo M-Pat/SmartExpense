@@ -79,7 +79,8 @@ fun ExpenseListScreen(
                     periodTab = periods.lastIndex.coerceAtLeast(0)
                 }
             }
-            ScrollableTabRow(selectedTabIndex = periodTab) {
+            val clampedPeriodTab = periodTab.coerceIn(0, periods.lastIndex.coerceAtLeast(0))
+            ScrollableTabRow(selectedTabIndex = clampedPeriodTab) {
                 periods.forEachIndexed { idx, (start, end) ->
                     val label = if (modeTab == 0) {
                         SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(start)) +
@@ -89,14 +90,13 @@ fun ExpenseListScreen(
                         SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(Date(start))
                     }
                     Tab(
-                        text     = { Text(label) },
-                        selected = (periodTab == idx),
-                        onClick  = { periodTab = idx }
+                        text = { Text(label) },
+                        selected = (clampedPeriodTab == idx),
+                        onClick = { periodTab = idx }
                     )
                 }
             }
-
-            val (selStart, selEnd) = periods.getOrNull(periodTab) ?: (0L to 0L)
+            val (selStart, selEnd) = periods.getOrNull(clampedPeriodTab) ?: (0L to 0L)
             Row(
                 Modifier
                     .fillMaxWidth()
