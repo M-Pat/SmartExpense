@@ -20,7 +20,7 @@ class ViewModelFactory(
             ExpenseListViewModel(repo) as T
 
         modelClass.isAssignableFrom(BudgetViewModel::class.java) ->
-            BudgetViewModel(app) as T // ✅ expects Application, now correct
+            BudgetViewModel(app) as T
 
         else -> throw IllegalArgumentException("Unknown ViewModel: $modelClass")
     }

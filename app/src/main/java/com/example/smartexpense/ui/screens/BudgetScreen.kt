@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 package com.example.smartexpense.ui.screens
 
+import android.app.Application
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -15,6 +16,9 @@ import com.example.smartexpense.viewmodel.ViewModelFactory
 
 @Composable
 fun BudgetScreen(onBack: () -> Unit) {
+    // Restore ViewModel with Application-based factory
+    val app = LocalContext.current.applicationContext as Application
+    val vm: BudgetViewModel = viewModel(factory = ViewModelFactory(app))
 
     val daily by vm.dailyBudget.collectAsState()
     val weekly by vm.weeklyBudget.collectAsState()

@@ -73,6 +73,12 @@ fun ExpenseListScreen(
 
             val periods = if (modeTab == 0) weekPeriods else monthPeriods
             var periodTab by rememberSaveable { mutableStateOf(0) }
+
+            LaunchedEffect(periods) {
+                if (periodTab >= periods.size) {
+                    periodTab = periods.lastIndex.coerceAtLeast(0)
+                }
+            }
             ScrollableTabRow(selectedTabIndex = periodTab) {
                 periods.forEachIndexed { idx, (start, end) ->
                     val label = if (modeTab == 0) {
